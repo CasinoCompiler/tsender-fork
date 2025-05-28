@@ -73,13 +73,26 @@ const AirdropForm: React.FC = () => {
     }, [tokenAddress, tokenData, tokenDecimals, tokenName, userBalance])
 
     const hasEnoughTokens = useMemo(() => {
+        // If token is invalid or no balance data, assume true (handled elsewhere)
         if (!isValidToken || !userBalance || total === 0) return true
+
+        console.log("Balance check:", {
+            userBalance,
+            total,
+            hasEnough: userBalance >= total
+        })
+
         return userBalance >= total
     }, [isValidToken, userBalance, total])
 
     const isFormValid = useMemo(() => {
-        return tokenAddress && recipients && amounts && isValidToken && hasEnoughTokens
-    }, [tokenAddress, recipients, amounts, isValidToken, hasEnoughTokens])
+        return tokenAddress &&
+            recipients &&
+            amounts &&
+            isValidToken &&
+            hasEnoughTokens &&
+            total > 0
+    }, [tokenAddress, recipients, amounts, isValidToken, hasEnoughTokens, total])
 
     // Button state logic
     const getButtonState = () => {
@@ -95,11 +108,11 @@ const AirdropForm: React.FC = () => {
         // If token data loaded but invalid
         if (tokenAddress && tokenData && !isValidToken) return 'invalid-token'
 
-        // If valid token but insufficient balance
-        if (isValidToken && !hasEnoughTokens) return 'insufficient-balance'
-
         // If missing recipients or amounts
         if (!recipients || !amounts) return 'incomplete'
+
+        // If valid token but insufficient balance (check this AFTER incomplete fields)
+        if (isValidToken && total > 0 && !hasEnoughTokens) return 'insufficient-balance'
 
         return 'ready'
     }
@@ -142,12 +155,14 @@ const AirdropForm: React.FC = () => {
     }
 
     const isButtonDisabled = () => {
+        const state = buttonState
         return isPending ||
             isConfirming ||
-            buttonState === 'invalid-token' ||
-            buttonState === 'insufficient-balance' ||
-            buttonState === 'incomplete' ||
-            buttonState === 'empty' ||
+            state === 'invalid-token' ||
+            state === 'insufficient-balance' ||
+            state === 'incomplete' ||
+            state === 'empty' ||
+            state === 'error' ||
             !isFormValid
     }
 
@@ -194,26 +209,22 @@ const AirdropForm: React.FC = () => {
 
     }
 
-    const handleSubmit = async () => {
-        setIsLoading(true);
+    async function handleSubmit() {
+        if (isButtonDisabled()) return
 
         try {
-            const tSenderAddress = chainsToTSender[chainId]["tsender"];
-            const approvedAmount = await getApprovedAmount(tSenderAddress);
-            console.log("approved amount: ", approvedAmount);
+            const tSenderAddress = chainsToTSender[chainId]["tsender"]
+            const approvedAmount = await getApprovedAmount(tSenderAddress)
 
             if (approvedAmount < total) {
                 const approvalHash = await writeContractAsync({
                     abi: erc20Abi,
                     address: tokenAddress as `0x${string}`,
                     functionName: "approve",
-                    args: [
-                        tSenderAddress as `0x${string}`,
-                        BigInt(total)
-                    ]
-                });
-                    const approvalReceipt = await waitForTransactionReceipt(config, {hash: approvalHash});
-                    console.log("Approval confirmed");
+                    args: [tSenderAddress as `0x${string}`, BigInt(total)],
+                })
+
+                await waitForTransactionReceipt(config, { hash: approvalHash })
             }
 
             await writeContractAsync({
@@ -222,18 +233,13 @@ const AirdropForm: React.FC = () => {
                 functionName: "airdropERC20",
                 args: [
                     tokenAddress,
-                    // Comma or new line separated
                     recipients.split(/[,\n]+/).map(addr => addr.trim()).filter(addr => addr !== ''),
                     amounts.split(/[,\n]+/).map(amt => amt.trim()).filter(amt => amt !== ''),
                     BigInt(total),
                 ],
             })
-
-        } catch (error){
-            // This catches other errors like RPC errors, wallet connection issues, etc.
-            console.error("Error in approval process: ", error);
-        } finally {
-            setIsLoading(false);
+        } catch (err) {
+            console.error("Transaction error:", err)
         }
     }
 
