@@ -4,15 +4,16 @@ import InputField from "./ui/InputField";
 import TransactionDetails from "./ui/TransactionDetails";
 import {useState, useMemo, useEffect} from "react";
 import { chainsToTSender, tsenderAbi, erc20Abi } from "@/app/constants";
-import {useChainId, useConfig, useAccount, useWriteContract, useReadContracts} from "wagmi";
-import { readContract, waitForTransactionReceipt, WaitForTransactionReceiptErrorType } from "@wagmi/core";
+import { useChainId, useConfig, useAccount, useWriteContract, useReadContracts, useWaitForTransactionReceipt } from "wagmi";
+import { readContract, waitForTransactionReceipt } from "@wagmi/core";
 import {calculateTotal} from "@/utils";
+import { CgSpinner } from "react-icons/cg"
 
 const AirdropForm: React.FC = () => {
     const [tokenAddress, setTokenAddress] = useState("");
     const [recipients, setRecipients] = useState("");
     const [amounts, setAmounts] = useState("");
-    const [hasEnoughTokens, setHasEnoughTokens] = useState(true)
+    //const [hasEnoughTokens, setHasEnoughTokens] = useState(true)
     const [isLoading, setIsLoading] = useState(false);
     const chainId = useChainId();
     const config = useConfig();
@@ -39,6 +40,141 @@ const AirdropForm: React.FC = () => {
             }
         ],
     });
+    const { isLoading: isConfirming, isSuccess: isConfirmed, isError } = useWaitForTransactionReceipt({
+        confirmations: 1,
+        hash,
+    })
+
+    const tokenDecimals = tokenData?.[0]?.result as number
+    const tokenName = tokenData?.[1]?.result as string
+    const userBalance = tokenData?.[2]?.result as number
+
+    const isValidToken = useMemo(() => {
+        if (!tokenAddress) return false
+        if (!tokenData) return false
+
+        // Debug logging
+        console.log("Token validation debug:", {
+            tokenAddress,
+            tokenData,
+            tokenDecimals,
+            tokenName,
+            userBalance,
+            hasErrors: tokenData.some(result => result.error)
+        })
+
+        // Check if any of the contract calls failed
+        const hasErrors = tokenData.some(result => result.error)
+        if (hasErrors) return false
+
+        // Check if we got valid responses (decimals should be a number, name should be a string)
+        const hasValidData = (tokenDecimals !== undefined) && (tokenName !== undefined && tokenName !== "")
+        return hasValidData
+    }, [tokenAddress, tokenData, tokenDecimals, tokenName, userBalance])
+
+    const hasEnoughTokens = useMemo(() => {
+        if (!isValidToken || !userBalance || total === 0) return true
+        return userBalance >= total
+    }, [isValidToken, userBalance, total])
+
+    const isFormValid = useMemo(() => {
+        return tokenAddress && recipients && amounts && isValidToken && hasEnoughTokens
+    }, [tokenAddress, recipients, amounts, isValidToken, hasEnoughTokens])
+
+    // Button state logic
+    const getButtonState = () => {
+        if (isPending) return 'confirming'
+        if (isConfirming) return 'waiting'
+        if (isError) return 'error'
+        if (isConfirmed) return 'success'
+        if (!tokenAddress) return 'empty'
+
+        // If we have a token address but no token data yet, we're still loading
+        if (tokenAddress && !tokenData) return 'empty'
+
+        // If token data loaded but invalid
+        if (tokenAddress && tokenData && !isValidToken) return 'invalid-token'
+
+        // If valid token but insufficient balance
+        if (isValidToken && !hasEnoughTokens) return 'insufficient-balance'
+
+        // If missing recipients or amounts
+        if (!recipients || !amounts) return 'incomplete'
+
+        return 'ready'
+    }
+
+    const buttonState = getButtonState()
+
+    const getButtonContent = () => {
+        switch (buttonState) {
+            case 'confirming':
+                return (
+                    <div className="flex items-center justify-center gap-2">
+                        <CgSpinner className="animate-spin" size={20} />
+                        <span>Confirm in wallet...</span>
+                    </div>
+                )
+            case 'waiting':
+                return (
+                    <div className="flex items-center justify-center gap-2">
+                        <CgSpinner className="animate-spin" size={20} />
+                        <span>Processing transaction...</span>
+                    </div>
+                )
+            case 'error':
+                return "Transaction failed"
+            case 'success':
+                return "Transaction confirmed!"
+            case 'empty':
+                return tokenAddress && !tokenData ? "Loading token data..." : "Enter token address"
+            case 'invalid-token':
+                return "Invalid token address"
+            case 'insufficient-balance':
+                return "Insufficient token balance"
+            case 'incomplete':
+                return "Complete all fields"
+            case 'ready':
+                return "Send Tokens"
+            default:
+                return "Send Tokens"
+        }
+    }
+
+    const isButtonDisabled = () => {
+        return isPending ||
+            isConfirming ||
+            buttonState === 'invalid-token' ||
+            buttonState === 'insufficient-balance' ||
+            buttonState === 'incomplete' ||
+            buttonState === 'empty' ||
+            !isFormValid
+    }
+
+    const getButtonStyles = () => {
+        const baseStyles = `
+            relative w-full py-4 px-6 rounded-xl font-semibold text-white transition-all duration-200 
+            focus:outline-none focus:ring-4 focus:ring-opacity-50 shadow-lg
+            before:absolute before:inset-0 before:rounded-xl before:bg-gradient-to-b 
+            before:from-white/20 before:to-transparent before:pointer-events-none
+            after:absolute after:inset-[1px] after:rounded-[11px] after:border 
+            after:border-white/20 after:pointer-events-none
+        `
+
+        if (isButtonDisabled()) {
+            return `${baseStyles} bg-gray-400 cursor-not-allowed opacity-60`
+        }
+
+        if (buttonState === 'error') {
+            return `${baseStyles} bg-red-500 hover:bg-red-600 focus:ring-red-500/50`
+        }
+
+        if (buttonState === 'success') {
+            return `${baseStyles} bg-green-500 hover:bg-green-600 focus:ring-green-500/50`
+        }
+
+        return `${baseStyles} bg-blue-500 hover:bg-blue-600 active:bg-blue-700 focus:ring-blue-500/50 transform hover:scale-[1.01] active:scale-[0.99]`
+    }
 
     async function getApprovedAmount(tSenderAddress: string | null): Promise<number> {
         if (!tSenderAddress){
@@ -123,15 +259,6 @@ const AirdropForm: React.FC = () => {
         localStorage.setItem('amounts', amounts)
     }, [amounts])
 
-    useEffect(() => {
-        if (tokenAddress && total > 0 && tokenData?.[2]?.result as number !== undefined) {
-            const userBalance = tokenData?.[2].result as number;
-            setHasEnoughTokens(userBalance >= total);
-        } else {
-            setHasEnoughTokens(true);
-        }
-    }, [tokenAddress, total, tokenData]);
-
     return (
         <div >
             <div className="space-y-5">
@@ -158,49 +285,12 @@ const AirdropForm: React.FC = () => {
 
                 <TransactionDetails name={tokenData?.[0]?.result as string} decimals={tokenData?.[1]?.result as number} amount={total} />
 
-                <button onClick={handleSubmit}
-                    disabled={isLoading}
-                    style={{
-                        backgroundColor: "#3b82f6",
-                        color: "white",
-                        padding: "0.75rem 1.5rem",
-                        borderRadius: "0.5rem",
-                        border: "none",
-                        fontWeight: "bold",
-                        fontSize: "1rem",
-                        cursor: isLoading ? "not-allowed" : "pointer",
-                        transition: "background-color 0.2s ease",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: "0.5rem",
-                        boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
-                        opacity: isLoading ? 0.7 : 1
-                    }}
-                    onMouseOver={(e) => {
-                        e.currentTarget.style.backgroundColor = "#2563eb"; // Darker blue on hover
-                    }}
-                    onMouseOut={(e) => {
-                        e.currentTarget.style.backgroundColor = "#3b82f6"; // Back to original color
-                    }}
+                <button
+                    className={getButtonStyles()}
+                    onClick={handleSubmit}
+                    disabled={isButtonDisabled()}
                 >
-                    {isLoading ? (
-                        <>
-                            <div
-                                style={{
-                                    width: "1rem",
-                                    height: "1rem",
-                                    borderRadius: "50%",
-                                    border: "2px solid rgba(255, 255, 255, 0.3)",
-                                    borderTopColor: "white",
-                                    animation: "spin 1s linear infinite"
-                                }}
-                            ></div>
-                            Processing...
-                        </>
-                    ) : (
-                        "Send Tokens"
-                    )}
+                    {getButtonContent()}
                 </button>
             </div>
         </div>
