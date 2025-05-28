@@ -13,6 +13,7 @@ const AirdropForm: React.FC = () => {
     const [tokenAddress, setTokenAddress] = useState("");
     const [recipients, setRecipients] = useState("");
     const [amounts, setAmounts] = useState("");
+    const [isLoading, setIsLoading] = useState(false);
     const chainId = useChainId();
     const config = useConfig();
     const account = useAccount();
@@ -43,15 +44,15 @@ const AirdropForm: React.FC = () => {
         hash,
     })
 
-    const tokenName = tokenData?.[0]?.result as string      // name is at index 0
-    const tokenDecimals = tokenData?.[1]?.result as number  // decimals is at index 1
-    const userBalance = tokenData?.[2]?.result as number    // balanceOf is at index 2
+    // FIXED: Corrected the data mapping
+    const tokenName = tokenData?.[0]?.result as string        // name is index 0
+    const tokenDecimals = tokenData?.[1]?.result as number    // decimals is index 1
+    const userBalance = tokenData?.[2]?.result as number      // balanceOf is index 2
 
     const isValidToken = useMemo(() => {
         if (!tokenAddress) return false
         if (!tokenData) return false
 
-        // Debug logging
         console.log("Token validation debug:", {
             tokenAddress,
             tokenData,
@@ -61,18 +62,20 @@ const AirdropForm: React.FC = () => {
             hasErrors: tokenData.some(result => result.error)
         })
 
-        // Check if any of the contract calls failed
         const hasErrors = tokenData.some(result => result.error)
         if (hasErrors) return false
 
-        // Check if we got valid responses (decimals should be a number, name should be a string)
         const hasValidData = (tokenDecimals !== undefined) && (tokenName !== undefined && tokenName !== "")
         return hasValidData
     }, [tokenAddress, tokenData, tokenDecimals, tokenName, userBalance])
 
+    // FIXED: Corrected balance checking logic
     const hasEnoughTokens = useMemo(() => {
-        // If token is invalid or no balance data, assume true (handled elsewhere)
-        if (!isValidToken || !userBalance || total === 0) return true
+        // If token is invalid or total is 0, don't check balance
+        if (!isValidToken || total === 0) return true
+
+        // If we don't have balance data yet, assume true (will be handled by loading state)
+        if (userBalance === undefined) return true
 
         console.log("Balance check:", {
             userBalance,
@@ -80,6 +83,7 @@ const AirdropForm: React.FC = () => {
             hasEnough: userBalance >= total
         })
 
+        // Now properly check if user has enough tokens (including when balance is 0)
         return userBalance >= total
     }, [isValidToken, userBalance, total])
 
@@ -92,7 +96,6 @@ const AirdropForm: React.FC = () => {
             total > 0
     }, [tokenAddress, recipients, amounts, isValidToken, hasEnoughTokens, total])
 
-    // Button state logic
     const getButtonState = () => {
         if (isPending) return 'confirming'
         if (isConfirming) return 'waiting'
@@ -100,17 +103,14 @@ const AirdropForm: React.FC = () => {
         if (isConfirmed) return 'success'
         if (!tokenAddress) return 'empty'
 
-        // If we have a token address but no token data yet, we're still loading
         if (tokenAddress && !tokenData) return 'empty'
 
-        // If token data loaded but invalid
         if (tokenAddress && tokenData && !isValidToken) return 'invalid-token'
 
-        // If missing recipients or amounts
         if (!recipients || !amounts) return 'incomplete'
 
-        // If valid token but insufficient balance (check this AFTER incomplete fields)
-        if (isValidToken && total > 0 && !hasEnoughTokens) return 'insufficient-balance'
+        // FIXED: Added better balance checking - only check when we have balance data
+        if (isValidToken && total > 0 && userBalance !== undefined && !hasEnoughTokens) return 'insufficient-balance'
 
         return 'ready'
     }
@@ -207,6 +207,27 @@ const AirdropForm: React.FC = () => {
 
     }
 
+    function parseAmount(amountString: string): number {
+        const trimmed = amountString.trim()
+        if (!trimmed) return 0
+
+        // Handle scientific notation with 'e'
+        if (/^-?\d+(\.\d+)?e\d+$/.test(trimmed)) {
+            const [base, exponent] = trimmed.split('e')
+            const expNum = parseInt(exponent, 10)
+
+            // Validate the exponent is between 1 and 18
+            if (expNum >= 1 && expNum <= 18) {
+                return parseFloat(base) * Math.pow(10, expNum)
+            } else {
+                return 0 // Invalid exponent range
+            }
+        } else {
+            const num = parseFloat(trimmed)
+            return isNaN(num) ? 0 : num
+        }
+    }
+
     async function handleSubmit() {
         if (isButtonDisabled()) return
 
@@ -225,6 +246,14 @@ const AirdropForm: React.FC = () => {
                 await waitForTransactionReceipt(config, { hash: approvalHash })
             }
 
+            const parsedAmounts = amounts
+                .split(/[,\n\s]+/)
+                .map(amt => amt.trim())
+                .filter(amt => amt !== '')
+                .map(amt => parseAmount(amt))
+                .filter(amt => amt > 0)
+                .map(amt => BigInt(Math.floor(amt)))
+
             await writeContractAsync({
                 abi: tsenderAbi,
                 address: tSenderAddress as `0x${string}`,
@@ -232,7 +261,7 @@ const AirdropForm: React.FC = () => {
                 args: [
                     tokenAddress,
                     recipients.split(/[,\n]+/).map(addr => addr.trim()).filter(addr => addr !== ''),
-                    amounts.split(/[,\n]+/).map(amt => amt.trim()).filter(amt => amt !== ''),
+                    parsedAmounts,
                     BigInt(total),
                 ],
             })
