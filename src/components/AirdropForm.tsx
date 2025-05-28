@@ -2,24 +2,22 @@
 
 import InputField from "./ui/InputField";
 import TransactionDetails from "./ui/TransactionDetails";
-import {useState, useMemo, useEffect} from "react";
+import { useState, useMemo, useEffect } from "react";
 import { chainsToTSender, tsenderAbi, erc20Abi } from "@/app/constants";
 import { useChainId, useConfig, useAccount, useWriteContract, useReadContracts, useWaitForTransactionReceipt } from "wagmi";
 import { readContract, waitForTransactionReceipt } from "@wagmi/core";
-import {calculateTotal} from "@/utils";
+import { calculateTotal } from "@/utils";
 import { CgSpinner } from "react-icons/cg"
 
 const AirdropForm: React.FC = () => {
     const [tokenAddress, setTokenAddress] = useState("");
     const [recipients, setRecipients] = useState("");
     const [amounts, setAmounts] = useState("");
-    //const [hasEnoughTokens, setHasEnoughTokens] = useState(true)
-    const [isLoading, setIsLoading] = useState(false);
     const chainId = useChainId();
     const config = useConfig();
     const account = useAccount();
     const total: number = useMemo(() => calculateTotal(amounts), [amounts]);
-    const { data: hash, isPending, writeContractAsync} = useWriteContract()
+    const { data: hash, isPending, writeContractAsync } = useWriteContract()
     const { data: tokenData } = useReadContracts({
         contracts: [
             {
@@ -45,9 +43,9 @@ const AirdropForm: React.FC = () => {
         hash,
     })
 
-    const tokenDecimals = tokenData?.[0]?.result as number
-    const tokenName = tokenData?.[1]?.result as string
-    const userBalance = tokenData?.[2]?.result as number
+    const tokenName = tokenData?.[0]?.result as string      // name is at index 0
+    const tokenDecimals = tokenData?.[1]?.result as number  // decimals is at index 1
+    const userBalance = tokenData?.[2]?.result as number    // balanceOf is at index 2
 
     const isValidToken = useMemo(() => {
         if (!tokenAddress) return false
@@ -192,7 +190,7 @@ const AirdropForm: React.FC = () => {
     }
 
     async function getApprovedAmount(tSenderAddress: string | null): Promise<number> {
-        if (!tSenderAddress){
+        if (!tSenderAddress) {
             alert("Address not found, please use a supported chain");
             return 0;
         }
@@ -268,7 +266,7 @@ const AirdropForm: React.FC = () => {
     return (
         <div >
             <div className="space-y-5">
-                <InputField 
+                <InputField
                     label="Token Address"
                     placeholder="0x..."
                     value={tokenAddress}
@@ -289,7 +287,7 @@ const AirdropForm: React.FC = () => {
                     onChange={e => setAmounts(e.target.value)}
                 />
 
-                <TransactionDetails name={tokenData?.[0]?.result as string} decimals={tokenData?.[1]?.result as number} amount={total} />
+                <TransactionDetails name={tokenName} decimals={tokenDecimals} amount={total} />
 
                 <button
                     className={getButtonStyles()}
