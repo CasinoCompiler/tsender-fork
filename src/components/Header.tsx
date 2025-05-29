@@ -3,30 +3,26 @@
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { FaGithub } from "react-icons/fa";
 import { FaMoon, FaSun } from "react-icons/fa";
-import { useDarkMode } from "@/app/context/DarkModeContext"; 
+import { useDarkMode } from "@/app/context/DarkModeContext";
 
 interface HeaderProps {
     githubUrl: string;
-    title?: string; // Optional prop to customize the title
+    title?: string;
 }
 
-/**
- * A reusable header component for a Web3 application
- * @param githubUrl - URL to your GitHub repository
- * @param title - The application title (defaults to "TSender")
- */
 const Header: React.FC<HeaderProps> = ({
     githubUrl,
     title = "TSender"
 }) => {
-    // Use dark mode hook instead of local state
-    const { darkMode, toggleDarkMode } = useDarkMode();
+    const { darkMode, toggleDarkMode, isHydrated } = useDarkMode();
 
     return (
-        <header className={`flex items-center justify-between px-8 py-4 w-full border-b transition-colors duration-200 ${darkMode
+        <header className={`flex items-center justify-between px-8 py-4 w-full border-b transition-colors duration-200 ${
+            // Only apply dark mode classes after hydration
+            isHydrated && darkMode
                 ? 'border-[var(--border-color)] bg-[var(--header-bg)] text-white'
                 : 'border-[var(--border-color)] bg-[var(--header-bg)] text-gray-800'
-          }`}>
+            }`}>
             <div className="flex items-center gap-4">
                 <a
                     href={githubUrl}
@@ -42,17 +38,22 @@ const Header: React.FC<HeaderProps> = ({
             </div>
             <div>
                 <div className="flex items-center gap-4">
-                    {/* Fixed: Using flex to place items side by side */}
                     <button
                         onClick={toggleDarkMode}
                         className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-                        aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"}
+                        // Use consistent aria-label and icon until hydrated
+                        aria-label={
+                            isHydrated
+                                ? (darkMode ? "Switch to light mode" : "Switch to dark mode")
+                                : "Switch to dark mode"
+                        }
                     >
-                        {darkMode ? <FaSun size={20} /> : <FaMoon size={20} />}
+                        {/* Show consistent icon until hydrated */}
+                        {isHydrated ? (darkMode ? <FaSun size={20} /> : <FaMoon size={20} />) : <FaMoon size={20} />}
                     </button>
                     <ConnectButton />
                 </div>
-            </div>        
+            </div>
         </header>
     );
 };
