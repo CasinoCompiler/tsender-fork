@@ -19,18 +19,17 @@ const TransactionDetails: React.FC<TransactionDetailsProps> = ({
 }) => {
 
     //Convert wei amount to normal amount by dividing by 10^decimals
-    let normalAmount;
-    if (decimals === undefined) {
-        normalAmount = "-";
-    } else{
-        normalAmount = amount ===0 ? 0 : amount / Math.pow(10, decimals);
-    }
-
     let outputName;
-    if (name === undefined) {
+    let outputWei
+    let outputAmount;
+    if (decimals === undefined) {
         outputName = "-";
-    } else {
+        outputWei = "-";
+        outputAmount = "-";
+    } else{
         outputName = name;
+        outputWei = amount;
+        outputAmount = amount ===0 ? 0 : amount / Math.pow(10, decimals);
     }
 
     return (
@@ -43,11 +42,11 @@ const TransactionDetails: React.FC<TransactionDetailsProps> = ({
                 </div>
                 <div className="text-sm font-medium flex justify-between">
                     <span>Amount in wei:</span>
-                    <span>{amount}</span>
+                    <span>{outputWei}</span>
                 </div>
                 <div className="text-sm font-medium flex justify-between">
                     <span>Amount in tokens:</span>
-                    <span className="font-mono">{normalAmount}</span>
+                    <span className="font-mono">{outputAmount}</span>
                 </div>
             </div>
         </div>
