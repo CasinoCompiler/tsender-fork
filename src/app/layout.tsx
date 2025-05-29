@@ -77,7 +77,7 @@ export default function RootLayout(props: { children: ReactNode }) {
       </head>
       <body>
         <Providers>
-          <Header githubUrl="https://github.com/CasinoCompiler" />
+          <Header githubUrl="https://github.com/CasinoCompiler/tsender-fork" />
           {props.children}
         </Providers>
       </body>
