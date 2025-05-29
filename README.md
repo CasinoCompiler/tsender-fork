@@ -55,7 +55,7 @@ A modern Web3 airdrop application that allows you to send ERC20 tokens to multip
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/your-username/tsender-fork.git
+git clone https://github.com/CasinoCompiler/tsender-fork
 cd tsender-fork
 ```
 
