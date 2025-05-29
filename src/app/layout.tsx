@@ -12,31 +12,63 @@ export default function RootLayout(props: { children: ReactNode }) {
   return (
     <html lang="en">
       <head>
-        {/* Inline script that runs BEFORE React to prevent flash */}
+        {/* BLOCKING script - executes immediately, before parser continues */}
         <script
+          // Using dangerouslySetInnerHTML ensures this is injected as early as possible
           dangerouslySetInnerHTML={{
             __html: `
+              // Execute immediately, blocking everything else
               (function() {
-                try {
-                  // Check localStorage first
-                  var savedMode = localStorage.getItem('darkMode');
-                  var isDark = false;
+                'use strict';
+                
+                function applyTheme() {
+                  var html = document.documentElement;
+                  var body = document.body;
                   
-                  if (savedMode !== null) {
-                    isDark = savedMode === 'dark';
-                  } else {
-                    // Fallback to system preference
-                    isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                  try {
+                    var savedMode = localStorage.getItem('darkMode');
+                    var isDark = false;
+                    
+                    if (savedMode !== null) {
+                      isDark = savedMode === 'dark';
+                    } else {
+                      isDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+                    }
+                    
+                    if (isDark) {
+                      html.classList.add('dark');
+                      html.style.backgroundColor = '#0f0f0f';
+                      html.style.color = '#ededed';
+                      html.style.colorScheme = 'dark';
+                      if (body) {
+                        body.style.backgroundColor = '#0f0f0f';
+                        body.style.color = '#ededed';
+                      }
+                    } else {
+                      html.classList.remove('dark');
+                      html.style.backgroundColor = '#ffffff';
+                      html.style.color = '#171717';
+                      html.style.colorScheme = 'light';
+                      if (body) {
+                        body.style.backgroundColor = '#ffffff';
+                        body.style.color = '#171717';
+                      }
+                    }
+                  } catch (e) {
+                    // Fallback to light mode on any error
+                    html.classList.remove('dark');
+                    html.style.backgroundColor = '#ffffff';
+                    html.style.color = '#171717';
+                    html.style.colorScheme = 'light';
                   }
-                  
-                  // Apply theme immediately
-                  if (isDark) {
-                    document.documentElement.classList.add('dark');
-                  } else {
-                    document.documentElement.classList.remove('dark');
-                  }
-                } catch (e) {
-                  // Silent fail if localStorage is not available
+                }
+                
+                // Apply immediately
+                applyTheme();
+                
+                // Also apply when DOM is ready (in case body wasn't available)
+                if (document.readyState === 'loading') {
+                  document.addEventListener('DOMContentLoaded', applyTheme);
                 }
               })();
             `,

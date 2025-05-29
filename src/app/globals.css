@@ -1,5 +1,7 @@
 @import "tailwindcss";
+@import "@rainbow-me/rainbowkit/styles.css";
 
+/* Define theme colors as CSS custom properties */
 :root {
   --background: #ffffff;
   --foreground: #171717;
@@ -9,13 +11,12 @@
 
 .dark {
   --background: #0f0f0f;
-  /* Slightly lighter than pure black */
   --foreground: #ededed;
   --header-bg: #111111;
-  /* Slightly darker than the body for subtle contrast */
   --border-color: #2a2a2a;
 }
 
+/* Apply theme to Tailwind */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -23,8 +24,32 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/* Base body styles - these inherit from html set by inline script */
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+  /* Re-enable transitions after initial load */
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* Ensure smooth transitions for components after hydration */
+* {
+  transition-property: background-color, border-color, color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+/* RainbowKit theme overrides to prevent flash */
+[data-rk] {
+  --rk-colors-modalBackground: var(--background);
+  --rk-colors-modalText: var(--foreground);
+  --rk-colors-modalTextSecondary: var(--foreground);
+}
+
+/* Ensure RainbowKit respects our theme immediately */
+.dark [data-rk] {
+  --rk-colors-modalBackground: var(--background);
+  --rk-colors-modalText: var(--foreground);
+  --rk-colors-modalTextSecondary: var(--foreground);
 }

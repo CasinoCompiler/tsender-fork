@@ -17,10 +17,7 @@ const Header: React.FC<HeaderProps> = ({
     const { darkMode, toggleDarkMode } = useDarkMode();
 
     return (
-        <header className={`flex items-center justify-between px-8 py-4 w-full border-b transition-colors duration-200 ${darkMode
-                ? 'border-[var(--border-color)] bg-[var(--header-bg)] text-white'
-                : 'border-[var(--border-color)] bg-[var(--header-bg)] text-gray-800'
-            }`}>
+        <header className="flex items-center justify-between px-8 py-4 w-full border-b transition-colors duration-200 border-[var(--border-color)] bg-[var(--header-bg)] text-[var(--foreground)]">
             <div className="flex items-center gap-4">
                 <a
                     href={githubUrl}
@@ -41,7 +38,13 @@ const Header: React.FC<HeaderProps> = ({
                         className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
                         aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"}
                     >
-                        {darkMode ? <FaSun size={20} /> : <FaMoon size={20} />}
+                        {/* Use CSS-based icon display to prevent flash */}
+                        <span className="dark:hidden">
+                            <FaMoon size={20} />
+                        </span>
+                        <span className="hidden dark:inline">
+                            <FaSun size={20} />
+                        </span>
                     </button>
                     <ConnectButton />
                 </div>
