@@ -1,3 +1,4 @@
+import { NEXT_INTERCEPTION_MARKER_PREFIX } from "next/dist/lib/constants";
 import React from "react";
 
 interface TransactionDetailsProps {
@@ -18,7 +19,19 @@ const TransactionDetails: React.FC<TransactionDetailsProps> = ({
 }) => {
 
     //Convert wei amount to normal amount by dividing by 10^decimals
-    const normalAmount = amount ===0 ? 0 : amount / Math.pow(10, decimals);
+    let normalAmount;
+    if (decimals === undefined) {
+        normalAmount = "-";
+    } else{
+        normalAmount = amount ===0 ? 0 : amount / Math.pow(10, decimals);
+    }
+
+    let outputName;
+    if (name === undefined) {
+        outputName = "-";
+    } else {
+        outputName = name;
+    }
 
     return (
         <div className="px-3 py-2 border border-gray-300 rounded-md shadow-sm w-full">
@@ -26,7 +39,7 @@ const TransactionDetails: React.FC<TransactionDetailsProps> = ({
             <div className="flex flex-col space-y-2 w-full">
                 <div className="text-sm font-medium flex justify-between">
                     <span>Token Name:</span>
-                    <span>{name}</span>
+                    <span>{outputName}</span>
                 </div>
                 <div className="text-sm font-medium flex justify-between">
                     <span>Amount in wei:</span>
