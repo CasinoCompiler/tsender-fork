@@ -1,4 +1,3 @@
-import { NEXT_INTERCEPTION_MARKER_PREFIX } from "next/dist/lib/constants";
 import React from "react";
 
 interface TransactionDetailsProps {
@@ -19,6 +18,7 @@ const TransactionDetails: React.FC<TransactionDetailsProps> = ({
 }) => {
 
     //Convert wei amount to normal amount by dividing by 10^decimals
+    // using let instead of const to allow reassignment and website is user side so no need to worry about const
     let outputName;
     let outputWei
     let outputAmount;
