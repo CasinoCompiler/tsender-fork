@@ -6,18 +6,16 @@ import { useState, useMemo, useEffect } from "react";
 import { chainsToTSender, tsenderAbi, erc20Abi } from "@/app/constants";
 import { useChainId, useConfig, useAccount, useWriteContract, useReadContracts, useWaitForTransactionReceipt } from "wagmi";
 import { readContract, waitForTransactionReceipt } from "@wagmi/core";
-import { calculateTotal } from "@/utils";
+import { calculateTotal, validateToken, validateHasEnoughTokens } from "@/utils";
 import { CgSpinner } from "react-icons/cg"
 
 const AirdropForm: React.FC = () => {
     const [tokenAddress, setTokenAddress] = useState("");
     const [recipients, setRecipients] = useState("");
     const [amounts, setAmounts] = useState("");
-    const [isLoading, setIsLoading] = useState(false);
     const chainId = useChainId();
     const config = useConfig();
     const account = useAccount();
-    const total: number = useMemo(() => calculateTotal(amounts), [amounts]);
     const { data: hash, isPending, writeContractAsync } = useWriteContract()
     const { data: tokenData } = useReadContracts({
         contracts: [
@@ -44,49 +42,17 @@ const AirdropForm: React.FC = () => {
         hash,
     })
 
-    // FIXED: Corrected the data mapping
-    const tokenName = tokenData?.[0]?.result as string        // name is index 0
-    const tokenDecimals = tokenData?.[1]?.result as number    // decimals is index 1
-    const userBalance = tokenData?.[2]?.result as number      // balanceOf is index 2
+    const tokenName = tokenData?.[0]?.result as string
+    const tokenDecimals = tokenData?.[1]?.result as number
+    const userBalance = tokenData?.[2]?.result as number
 
-    const isValidToken = useMemo(() => {
-        if (!tokenAddress) return false
-        if (!tokenData) return false
+    const total: number = useMemo(() => calculateTotal(amounts), [amounts]);
 
-        console.log("Token validation debug:", {
-            tokenAddress,
-            tokenData,
-            tokenDecimals,
-            tokenName,
-            userBalance,
-            hasErrors: tokenData.some(result => result.error)
-        })
+    const isValidToken = useMemo(() => validateToken(tokenAddress, tokenName, tokenDecimals), [tokenAddress, tokenName, tokenDecimals])
 
-        const hasErrors = tokenData.some(result => result.error)
-        if (hasErrors) return false
+    const hasEnoughTokens = useMemo(() => validateHasEnoughTokens(isValidToken, userBalance, total), [isValidToken, userBalance, total])
 
-        const hasValidData = (tokenDecimals !== undefined) && (tokenName !== undefined && tokenName !== "")
-        return hasValidData
-    }, [tokenAddress, tokenData, tokenDecimals, tokenName, userBalance])
-
-    // FIXED: Corrected balance checking logic
-    const hasEnoughTokens = useMemo(() => {
-        // If token is invalid or total is 0, don't check balance
-        if (!isValidToken || total === 0) return true
-
-        // If we don't have balance data yet, assume true (will be handled by loading state)
-        if (userBalance === undefined) return true
-
-        console.log("Balance check:", {
-            userBalance,
-            total,
-            hasEnough: userBalance >= total
-        })
-
-        // Now properly check if user has enough tokens (including when balance is 0)
-        return userBalance >= total
-    }, [isValidToken, userBalance, total])
-
+    // Factoring out form logic not necessary 
     const isFormValid = useMemo(() => {
         return tokenAddress &&
             recipients &&
