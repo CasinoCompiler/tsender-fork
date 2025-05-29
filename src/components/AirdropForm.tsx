@@ -83,6 +83,18 @@ const AirdropForm: React.FC = () => {
 
     const buttonState = getButtonState()
 
+    const isButtonDisabled = () => {
+        const state = buttonState
+        return isPending ||
+            isConfirming ||
+            state === 'invalid-token' ||
+            state === 'insufficient-balance' ||
+            state === 'incomplete' ||
+            state === 'empty' ||
+            state === 'error' ||
+            !isFormValid
+    }
+
     const getButtonContent = () => {
         switch (buttonState) {
             case 'confirming':
@@ -116,18 +128,6 @@ const AirdropForm: React.FC = () => {
             default:
                 return "Send Tokens"
         }
-    }
-
-    const isButtonDisabled = () => {
-        const state = buttonState
-        return isPending ||
-            isConfirming ||
-            state === 'invalid-token' ||
-            state === 'insufficient-balance' ||
-            state === 'incomplete' ||
-            state === 'empty' ||
-            state === 'error' ||
-            !isFormValid
     }
 
     const getButtonStyles = () => {
