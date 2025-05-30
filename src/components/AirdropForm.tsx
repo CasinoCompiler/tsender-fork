@@ -4,10 +4,11 @@ import InputField from "./ui/InputField";
 import TransactionDetails from "./ui/TransactionDetails";
 import { useState, useMemo, useEffect } from "react";
 import { chainsToTSender, tsenderAbi, erc20Abi } from "@/app/constants";
-import { useChainId, useConfig, useAccount, useWriteContract, useReadContracts, useWaitForTransactionReceipt } from "wagmi";
+import { useChainId, useConfig, useAccount, useReadContracts } from "wagmi";
 import { readContract, waitForTransactionReceipt } from "@wagmi/core";
 import { calculateTotal, validateToken, validateHasEnoughTokens } from "@/utils";
 import { CgSpinner } from "react-icons/cg"
+import { useTransactionButton } from "@/hooks/useTransactionButton";
 
 const AirdropForm: React.FC = () => {
     const [tokenAddress, setTokenAddress] = useState("");
@@ -16,7 +17,9 @@ const AirdropForm: React.FC = () => {
     const chainId = useChainId();
     const config = useConfig();
     const account = useAccount();
-    const { data: hash, isPending, writeContractAsync } = useWriteContract()
+
+    const { buttonState, writeContractAsync, resetButtonState } = useTransactionButton()
+
     const { data: tokenData } = useReadContracts({
         contracts: [
             {
@@ -37,10 +40,6 @@ const AirdropForm: React.FC = () => {
             }
         ],
     });
-    const { isLoading: isConfirming, isSuccess: isConfirmed, isError } = useWaitForTransactionReceipt({
-        confirmations: 1,
-        hash,
-    })
 
     const tokenName = tokenData?.[0]?.result as string
     const tokenDecimals = tokenData?.[1]?.result as number
@@ -52,7 +51,6 @@ const AirdropForm: React.FC = () => {
 
     const hasEnoughTokens = useMemo(() => validateHasEnoughTokens(isValidToken, userBalance, total), [isValidToken, userBalance, total])
 
-    // Factoring out form logic not necessary 
     const isFormValid = useMemo(() => {
         return tokenAddress &&
             recipients &&
@@ -62,41 +60,46 @@ const AirdropForm: React.FC = () => {
             total > 0
     }, [tokenAddress, recipients, amounts, isValidToken, hasEnoughTokens, total])
 
-    const getButtonState = () => {
-        if (isPending) return 'confirming'
-        if (isConfirming) return 'waiting'
-        if (isError) return 'error'
-        if (isConfirmed) return 'success'
+    // Button state logic that combines transaction state with form validation
+    const getButtonStateForValidation = () => {
+        // If transaction is in progress, return the transaction state
+        if (buttonState !== 'idle') {
+            return buttonState
+        }
+
+        // Validate the form step by step
         if (!tokenAddress) return 'empty'
-
-        if (tokenAddress && !tokenData) return 'empty'
-
+        if (tokenAddress && !tokenData) return 'loading'
         if (tokenAddress && tokenData && !isValidToken) return 'invalid-token'
-
         if (!recipients || !amounts) return 'incomplete'
 
-        // FIXED: Added better balance checking - only check when we have balance data
-        if (isValidToken && total > 0 && userBalance !== undefined && !hasEnoughTokens) return 'insufficient-balance'
+        // Check balance specifically - this is the key fix
+        if (isValidToken && total > 0 && userBalance !== undefined) {
+            if (!hasEnoughTokens) {
+                return 'insufficient-balance'
+            }
+        }
+
+        // If we have balance data but it's still loading
+        if (userBalance === undefined && tokenAddress && tokenData) return 'loading'
 
         return 'ready'
     }
 
-    const buttonState = getButtonState()
+    const currentButtonState = getButtonStateForValidation()
 
     const isButtonDisabled = () => {
-        const state = buttonState
-        return isPending ||
-            isConfirming ||
-            state === 'invalid-token' ||
-            state === 'insufficient-balance' ||
-            state === 'incomplete' ||
-            state === 'empty' ||
-            state === 'error' ||
+        return currentButtonState === 'confirming' ||
+            currentButtonState === 'waiting' ||
+            currentButtonState === 'invalid-token' ||
+            currentButtonState === 'insufficient-balance' ||
+            currentButtonState === 'incomplete' ||
+            currentButtonState === 'empty' ||
             !isFormValid
     }
 
     const getButtonContent = () => {
-        switch (buttonState) {
+        switch (currentButtonState) {
             case 'confirming':
                 return (
                     <div className="flex items-center justify-center gap-2">
@@ -112,7 +115,7 @@ const AirdropForm: React.FC = () => {
                     </div>
                 )
             case 'error':
-                return "Transaction failed"
+                return "Transaction failed - Try again"
             case 'success':
                 return "Transaction confirmed!"
             case 'empty':
@@ -144,11 +147,11 @@ const AirdropForm: React.FC = () => {
             return `${baseStyles} bg-gray-400 cursor-not-allowed opacity-60`
         }
 
-        if (buttonState === 'error') {
+        if (currentButtonState === 'error') {
             return `${baseStyles} bg-red-500 hover:bg-red-600 focus:ring-red-500/50`
         }
 
-        if (buttonState === 'success') {
+        if (currentButtonState === 'success') {
             return `${baseStyles} bg-green-500 hover:bg-green-600 focus:ring-green-500/50`
         }
 
@@ -170,23 +173,20 @@ const AirdropForm: React.FC = () => {
             ]
         })
         return response as number;
-
     }
 
     function parseAmount(amountString: string): number {
         const trimmed = amountString.trim()
         if (!trimmed) return 0
 
-        // Handle scientific notation with 'e'
         if (/^-?\d+(\.\d+)?e\d+$/.test(trimmed)) {
             const [base, exponent] = trimmed.split('e')
             const expNum = parseInt(exponent, 10)
 
-            // Validate the exponent is between 1 and 18
             if (expNum >= 1 && expNum <= 18) {
                 return parseFloat(base) * Math.pow(10, expNum)
             } else {
-                return 0 // Invalid exponent range
+                return 0
             }
         } else {
             const num = parseFloat(trimmed)
@@ -259,7 +259,7 @@ const AirdropForm: React.FC = () => {
     }, [amounts])
 
     return (
-        <div >
+        <div>
             <div className="space-y-5">
                 <InputField
                     label="Token Address"
@@ -291,6 +291,16 @@ const AirdropForm: React.FC = () => {
                 >
                     {getButtonContent()}
                 </button>
+
+                {/* Manual reset button for error states */}
+                {currentButtonState === 'error' && (
+                    <button
+                        onClick={resetButtonState}
+                        className="w-full py-2 text-sm text-gray-600 hover:text-gray-800"
+                    >
+                        Reset
+                    </button>
+                )}
             </div>
         </div>
     )
