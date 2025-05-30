@@ -6,11 +6,6 @@ interface TransactionDetailsProps {
     amount?: number;
   }
 
-interface handleNormalAmountProps{
-    amount: number;
-    decimals: number;
-}
-
 const TransactionDetails: React.FC<TransactionDetailsProps> = ({
     name,
     decimals,

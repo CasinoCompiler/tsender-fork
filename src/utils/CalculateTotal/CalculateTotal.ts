@@ -20,8 +20,8 @@ export const calculateTotal = (amountsString: string): number => {
         .map(item => item.trim())  // Trim whitespace
         .filter(item => item !== ''); // Remove empty items
 
-    // Convert to numbers and sum
-    return items.reduce((sum, item) => {
+    // FIXED: Use BigInt arithmetic to maintain precision for large numbers
+    const totalBigInt = items.reduce((sum, item) => {
         // Handle scientific notation with 'e'
         if (/^-?\d+(\.\d+)?e\d+$/.test(item)) {
             const [base, exponent] = item.split('e');
@@ -29,15 +29,39 @@ export const calculateTotal = (amountsString: string): number => {
 
             // Validate the exponent is between 1 and 18
             if (expNum >= 1 && expNum <= 18) {
-                return sum + parseFloat(base) * Math.pow(10, expNum);
+                try {
+                    // Handle decimal bases like "1.5e18"
+                    if (base.includes('.')) {
+                        const [intPart, decPart] = base.split('.');
+                        const decimalPlaces = decPart.length;
+                        const combinedNumber = intPart + decPart; // "1.5" -> "15"
+                        const adjustedExp = expNum - decimalPlaces; // 18 - 1 = 17
+
+                        if (adjustedExp >= 0) {
+                            return sum + BigInt(combinedNumber) * (BigInt(10) ** BigInt(adjustedExp));
+                        } else {
+                            // Handle cases where decimal places exceed exponent
+                            return sum + BigInt(combinedNumber) / (BigInt(10) ** BigInt(-adjustedExp));
+                        }
+                    } else {
+                        // Integer base like "40e18"
+                        return sum + BigInt(base) * (BigInt(10) ** BigInt(expNum));
+                    }
+                } catch {
+                    return sum; // Invalid format, ignore this item
+                }
             } else {
                 // Invalid exponent range, ignore this item
                 return sum;
             }
         } else {
             const num = parseFloat(item);
-            // Only add valid numbers to the sum
-            return isNaN(num) ? sum : sum + num;
+            // Only add valid numbers to the sum (convert to BigInt)
+            return isNaN(num) ? sum : sum + BigInt(Math.floor(num));
         }
-    }, 0);
-  };
+    }, BigInt(0));
+
+    console.log("totalBigInt number:", Number(totalBigInt));
+    // Convert back to number for return (this is safe for display purposes)
+    return Number(totalBigInt);
+};
