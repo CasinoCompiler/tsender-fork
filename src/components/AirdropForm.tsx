@@ -276,7 +276,7 @@ const AirdropForm: React.FC = () => {
                 />
                 <InputField
                     label="Amounts (wei; comma, space or new line separated)"
-                    placeholder="100, 200, 300e18"
+                    placeholder="100, 200 300"
                     value={amounts}
                     large={true}
                     onChange={e => setAmounts(e.target.value)}
