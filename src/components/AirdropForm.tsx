@@ -6,7 +6,7 @@ import { useState, useMemo, useEffect } from "react";
 import { chainsToTSender, tsenderAbi, erc20Abi } from "@/app/constants";
 import { useChainId, useConfig, useAccount, useReadContracts } from "wagmi";
 import { readContract, waitForTransactionReceipt } from "@wagmi/core";
-import { calculateTotal, validateToken, validateHasEnoughTokens } from "@/utils";
+import { calculateTotal, validateToken, validateHasEnoughTokens, validateRecipientsAmountsMatch } from "@/utils";
 import { CgSpinner } from "react-icons/cg"
 import { useTransactionButton } from "@/hooks/useTransactionButton";
 
@@ -51,14 +51,17 @@ const AirdropForm: React.FC = () => {
 
     const hasEnoughTokens = useMemo(() => validateHasEnoughTokens(isValidToken, userBalance, total), [isValidToken, userBalance, total])
 
+    const recipientsAmountsMatch = useMemo(() => validateRecipientsAmountsMatch(recipients, amounts), [recipients, amounts])
+
     const isFormValid = useMemo(() => {
         return tokenAddress &&
             recipients &&
             amounts &&
             isValidToken &&
             hasEnoughTokens &&
+            recipientsAmountsMatch &&
             total > 0
-    }, [tokenAddress, recipients, amounts, isValidToken, hasEnoughTokens, total])
+    }, [tokenAddress, recipients, amounts, isValidToken, hasEnoughTokens, recipientsAmountsMatch, total])
 
     // Button state logic that combines transaction state with form validation
     const getButtonStateForValidation = () => {
@@ -73,12 +76,13 @@ const AirdropForm: React.FC = () => {
         if (tokenAddress && tokenData && !isValidToken) return 'invalid-token'
         if (!recipients || !amounts) return 'incomplete'
 
-        // Check balance specifically - this is the key fix
         if (isValidToken && total > 0 && userBalance !== undefined) {
             if (!hasEnoughTokens) {
                 return 'insufficient-balance'
             }
         }
+
+        if (!recipientsAmountsMatch) return 'Inputs do not match'
 
         // If we have balance data but it's still loading
         if (userBalance === undefined && tokenAddress && tokenData) return 'loading'
@@ -128,6 +132,8 @@ const AirdropForm: React.FC = () => {
                 return "Complete all fields"
             case 'ready':
                 return "Send Tokens"
+            case 'Inputs do not match':
+                return "Inputs do not match"
             default:
                 return "Send Tokens"
         }
