@@ -26,6 +26,7 @@ A modern Web3 airdrop application that allows you to send ERC20 tokens to multip
 - **Flexible Separators**: Supports comma, space, and newline-separated values
 - **Smart Parsing**: Automatically handles mixed input formats
 - **Input Persistence**: Saves form data to localStorage for better UX
+- **Input Verifrification**: Real-time validation of token addresses, amounts and allowe inputs to ensure no failed transactions
 
 ### 🛡️ Safety Features
 - **Balance Validation**: Ensures sufficient token balance before transactions
