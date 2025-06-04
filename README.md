@@ -153,7 +153,6 @@ If you have any questions or need help, please:
 - Open an issue on GitHub
 - Check the documentation
 - Join our community discussions
-
 ---
 
 **⚠️ Disclaimer**: This application interacts with smart contracts on various blockchains. Always verify contract addresses and transactions before usage. Use at your own risk.
